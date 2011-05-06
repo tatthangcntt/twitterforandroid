@@ -1,35 +1,58 @@
 package com.twitter.android;
 
-import oauth.signpost.OAuth;
-import oauth.signpost.OAuthConsumer;
-import oauth.signpost.OAuthProvider;
-import android.content.Context;
+import twitter4j.Twitter;
+import twitter4j.auth.AccessToken;
+import twitter4j.auth.RequestToken;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
 
+import com.twitter.android.OAuthRequestTokenTask.TaskListener;
+
+/**
+ * Retrieve access token after a successful authentication/autherization.
+ * @author Efi MK (Visit my <a href="http://couchpotatoapps.wordpress.com">blog</a>)
+ *
+ */
 public class RetrieveAccessTokenTask extends AsyncTask<Uri, Void, Void> {
 
 	 /**
      * Used for logger.
      */
     final String TAG = getClass().getName();
-	private Context	context;
-	private OAuthProvider provider;
-	private OAuthConsumer consumer;
+	/**
+	 * Save token received from twitter.
+	 */
 	private SharedPreferences prefs;
+	/**
+	 * A twitter agent.
+	 */
+	private final Twitter mTwitter;
+	/**
+	 * A request token used by the twitter agent.
+	 */
+	private final RequestToken mToken;
+	/**
+	 * Update listener after task is completed.
+	 */
+	private final TaskListener mListener;
 	
-	public RetrieveAccessTokenTask(Context context, OAuthConsumer consumer,OAuthProvider provider, SharedPreferences prefs) {
+	
+	
+	public RetrieveAccessTokenTask(Twitter twitter, RequestToken token, SharedPreferences prefs, TaskListener listener) {
 		
-		this.context = context;
-		this.consumer = consumer;
-		this.provider = provider;
+		this.mTwitter = twitter;
+		this.mToken = token;
+		
 		this.prefs=prefs;
+		this.mListener = listener;
 	}
 
 
+	private Exception mException = null;
+	
 	/**
 	 * Retrieve the oauth_verifier, and store the oauth and oauth_token_secret 
 	 * for future API calls.
@@ -37,22 +60,17 @@ public class RetrieveAccessTokenTask extends AsyncTask<Uri, Void, Void> {
 	@Override
 	protected Void doInBackground(Uri...params) {
 		final Uri uri = params[0];
-		final String oauth_verifier = uri.getQueryParameter(OAuth.OAUTH_VERIFIER);
+		final String oauth_verifier = uri.getQueryParameter(TwitterConstants.OAUTH_VERIFIER);
 
 		try {
-			provider.retrieveAccessToken(consumer, oauth_verifier);
+			AccessToken accessToken = mTwitter.getOAuthAccessToken(mToken, oauth_verifier);
+			
 
 			final Editor edit = prefs.edit();
-			edit.putString(OAuth.OAUTH_TOKEN, consumer.getToken());
-			edit.putString(OAuth.OAUTH_TOKEN_SECRET, consumer.getTokenSecret());
+			edit.putString(TwitterConstants.OAUTH_TOKEN, accessToken.getToken());
+			edit.putString(TwitterConstants.OAUTH_TOKEN_SECRET, accessToken.getTokenSecret());
 			edit.commit();
-			
-			String token = prefs.getString(OAuth.OAUTH_TOKEN, "");
-			String secret = prefs.getString(OAuth.OAUTH_TOKEN_SECRET, "");
-			
-			consumer.setTokenWithSecret(token, secret);
 
-			
 			Log.i(TAG, "OAuth - Access Token Retrieved");
 			
 		} catch (Exception e) {
@@ -60,6 +78,14 @@ public class RetrieveAccessTokenTask extends AsyncTask<Uri, Void, Void> {
 		}
 
 		return null;
+	}
+
+	@Override
+	protected void onPostExecute(Void result) {
+		// Update the listener.
+		if (mListener != null) {
+			mListener.onPostExecute(mException, null);
+		}
 	}
 
 

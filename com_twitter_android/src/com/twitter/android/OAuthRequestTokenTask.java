@@ -1,21 +1,20 @@
 package com.twitter.android;
 
-import oauth.signpost.OAuthConsumer;
-import oauth.signpost.OAuthProvider;
-import android.content.Context;
+import twitter4j.Twitter;
+import twitter4j.auth.RequestToken;
 import android.os.AsyncTask;
 import android.util.Log;
 import android.webkit.WebView;
 
+
 /**
  * An asynchronous task that communicates with Twitter to 
  * retrieve a request token.
- * (OAuthGetRequestToken)
- * 
+ * <br>
  * After receiving the request token from Twitter, 
  * pop a browser to the user to authorize the Request Token.
- * (OAuthAuthorizeToken)
- * 
+ * @author Efi MK (Visit my <a href="http://couchpotatoapps.wordpress.com">blog</a>)
+ *
  */
 public class OAuthRequestTokenTask extends AsyncTask<Void, Void, String> {
 
@@ -25,19 +24,20 @@ public class OAuthRequestTokenTask extends AsyncTask<Void, Void, String> {
 	 *
 	 */
 	public interface TaskListener {
-		void onPostExecute(Exception e);
+		/**
+		 * Indicates that the task was completed.
+		 * @param e - Any exception that was thrown during the task.
+		 * @param result - Result retrieved by the task.
+		 */
+		void onPostExecute(Exception e, Object result);
 	}
 	/**
 	 * Tag used for logging.
 	 */
 	final String TAG = getClass().getName();
 	
-	private OAuthProvider provider;
-	private OAuthConsumer consumer;
-	/**
-	 * Holds the callback URL.
-	 */
-	private final String mCallbackURL;
+	
+	
 
 	private Exception mException = null;
 	/**
@@ -50,22 +50,27 @@ public class OAuthRequestTokenTask extends AsyncTask<Void, Void, String> {
 	 */
 	private final TaskListener mListener;
 
+
+	private RequestToken mRequestToken;
+
+
+
+
+	private final Twitter mTwitter;
+
 	/**
 	 * 
-	 * We pass the OAuth consumer and provider.
+	 * A constructor
 	 * 
-	 * @param 	provider - The OAuthProvider object
-	 * @param 	consumer - The OAuthConsumer object
-	 * @param callbackURL - Gets result back to this URL.
+	 * @param twitter - A twitter agent.
 	 * @param view - Change the authentication URL for this web view.
 	 * @param listener - When task is done call onPostExecute with exception details.
 	 */
-	public OAuthRequestTokenTask(OAuthConsumer consumer,
-			OAuthProvider provider, String callbackURL, WebView view, 
+	public OAuthRequestTokenTask(Twitter twitter, WebView view, 
 			TaskListener listener) {
-		this.consumer = consumer;
-		this.provider = provider;
-		mCallbackURL = callbackURL;
+		
+		this.mTwitter = twitter;
+		
 		mWebView = view;
 		mListener = listener;
 	}
@@ -79,8 +84,10 @@ public class OAuthRequestTokenTask extends AsyncTask<Void, Void, String> {
 	protected String doInBackground(Void... params) {
 		String url = null;
 		try {
+			
 			Log.i(TAG, "Retrieving request token from Google servers");
-			url = provider.retrieveRequestToken(consumer, mCallbackURL);
+			mRequestToken = mTwitter.getOAuthRequestToken(TwitterAuthDialog.CALLBACK_URL);
+			url = mRequestToken.getAuthorizationURL();
 			
 		} catch (Exception e) {
 			Log.e(TAG, "Error during OAUth retrieve request token", e);
@@ -92,11 +99,17 @@ public class OAuthRequestTokenTask extends AsyncTask<Void, Void, String> {
 
 	@Override
 	protected void onPostExecute(String result) {
-		Log.i(TAG, "Popping a browser with the authorize URL : " + result);
-		mWebView.loadUrl(result);
+		// Make sure that we didn't have any error while processing.
+		if (result != null) {
+			Log.i(TAG, "Popping a browser with the authorize URL : " + result);
+			mWebView.loadUrl(result);
+		}
+		else {
+			Log.e(TAG, "Got an empty url!");
+		}
 		// Update the listener.
 		if (mListener != null) {
-			mListener.onPostExecute(mException);
+			mListener.onPostExecute(mException, mRequestToken);
 		}
 	}
 	
