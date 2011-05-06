@@ -1,7 +1,8 @@
 /*
  * Copyright 2010 Facebook, Inc.
  * 
- * Code was changed by Efi MK. Visit my blog: http://couchpotatoapps.wordpress.com/
+ * Code was changed by Efi MK. 
+ * Visit my blog: http://couchpotatoapps.wordpress.com/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +19,9 @@
 
 package com.twitter.android;
 
-import com.twitter.android.OAuthRequestTokenTask.TaskListener;
-
-import oauth.signpost.OAuthConsumer;
-import oauth.signpost.OAuthProvider;
-import oauth.signpost.commonshttp.CommonsHttpOAuthConsumer;
-import oauth.signpost.commonshttp.CommonsHttpOAuthProvider;
+import twitter4j.Twitter;
+import twitter4j.TwitterFactory;
+import twitter4j.auth.RequestToken;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -46,10 +44,13 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.twitter.android.OAuthRequestTokenTask.TaskListener;
+
+
 
 /**
  * A dialog box for twitter authentication.
- * @author Efi MK
+ * @author Efi MK (Visit my <a href="http://couchpotatoapps.wordpress.com">blog</a>)
  *
  */
 public class TwitterAuthDialog extends Dialog implements TaskListener {
@@ -82,33 +83,26 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
      * Used for logger.
      */
     final String TAG = getClass().getName();
-    /**
-     * Used by OAuth
-     */
-    private static final String REQUEST_URL = "https://api.twitter.com/oauth/request_token";
-    /**
-     * Used by OAuth
-     */
-    private static final String ACCESS_URL = "https://api.twitter.com/oauth/access_token";
-    /**
-     * Used by OAuth
-     */
-    private static final String AUTHORIZE_URL = "https://api.twitter.com/oauth/authorize";
+    
 
     /**
      * Listen to this schema and act upon.
      */
 	private static String	CALLBACK_SCHEME = "x-latify-oauth-twitter";
-	private static String	CALLBACK_URL = CALLBACK_SCHEME + "://callback";
+	/**
+	 * A callback URL used to capture a successful authentication.
+	 */
+	public static String	CALLBACK_URL = CALLBACK_SCHEME + "://callback";
+	
 	
 	/**
-	 * OAuth consumer.
+	 * A twitter agent.
 	 */
-	private OAuthConsumer consumer;
+	private Twitter mTwitter;
 	/**
-	 * OAuth provider.
+	 * 
 	 */
-    private OAuthProvider provider;
+	private RequestToken mRequestToken;
     
     /**
      * Create a new dialog box.
@@ -120,8 +114,10 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
     public TwitterAuthDialog(Context context, String consumerKey, String consumerSecret, TwitterDialogListener listener) {
         super(context);
 
-        this.consumer = new CommonsHttpOAuthConsumer(consumerKey, consumerSecret);
-	    this.provider = new CommonsHttpOAuthProvider(REQUEST_URL,ACCESS_URL,AUTHORIZE_URL);
+        mTwitter = new TwitterFactory().getInstance();
+        mTwitter.setOAuthConsumer(consumerKey, consumerSecret);
+		
+        
         mListener = listener;
     }
 
@@ -148,7 +144,10 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
                 display.getWidth() - ((int) (dimensions[0] * scale + 0.5f)),
                 display.getHeight() - ((int) (dimensions[1] * scale + 0.5f))));
         
-        new OAuthRequestTokenTask(consumer,provider, CALLBACK_URL, mWebView, this).execute();
+
+		new OAuthRequestTokenTask(mTwitter, mWebView, this).execute();
+		
+        
     }
 
     private void setUpTitle() {
@@ -178,9 +177,8 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
     }
 
     private class TwitterWebViewClient extends WebViewClient {
+    	
 
-    	
-    	
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             Log.d(TAG, "Redirect URL: " + url);
@@ -191,7 +189,7 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
             	// Dismiss the dialog
             	dismiss();
             	SharedPreferences prefs =  PreferenceManager.getDefaultSharedPreferences(getContext());
-            	new RetrieveAccessTokenTask(getContext(),consumer,provider,prefs).execute(uri);
+            	new RetrieveAccessTokenTask(mTwitter,mRequestToken,prefs, TwitterAuthDialog.this).execute(uri);
             	mListener.onComplete(uri);
             }
             // Anything else means the user cancelled.
@@ -232,7 +230,11 @@ public class TwitterAuthDialog extends Dialog implements TaskListener {
     }
 
 	@Override
-	public void onPostExecute(Exception e) {
+	public void onPostExecute(Exception e, Object result) {
+		// If result is of type request token then save it for later use.
+		if (result instanceof RequestToken) {
+			mRequestToken = (RequestToken) result;
+		}
 		// In case exception is thrown then close the twitter dialogbox.
 		if (e != null) {
 			dismiss();

@@ -2,10 +2,11 @@ package com.twitter.android;
 
 import twitter4j.TwitterException;
 import android.net.Uri;
-import android.os.Bundle;
+
 
 /**
  * Callback interface for dialog requests.
+ * @author Efi MK (Visit my <a href="http://couchpotatoapps.wordpress.com">blog</a>)
  *
  */
 public interface TwitterDialogListener {
